@@ -10,9 +10,11 @@
   },
   "dependencies": {
     "@expo/metro-runtime": "~3.2.3",
+    "chart.js": "^4.4.4",
     "expo": "~51.0.28",
     "expo-status-bar": "~1.12.1",
     "react": "18.2.0",
+    "react-chartjs-2": "^5.2.0",
     "react-dom": "18.2.0",
     "react-native": "0.74.5",
     "react-native-chart-kit": "^6.12.0",
