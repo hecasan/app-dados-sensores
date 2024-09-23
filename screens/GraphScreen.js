@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Line } from 'react-chartjs-2';
+import { View, Text, StyleSheet, Picker } from 'react-native';
+import { Line, Bar } from 'react-chartjs-2';
 import 'chart.js/auto'; // Certifique-se de importar o 'chart.js/auto' para registrar todos os componentes do gráfico.
 
 export default function GraphScreen({ route }) {
   const [sensorData, setSensorData] = useState([]);
+  const [chartType, setChartType] = useState('line'); // Estado para armazenar o tipo de gráfico
   const { token } = route.params;
 
   useEffect(() => {
@@ -57,14 +58,38 @@ export default function GraphScreen({ route }) {
     },
   };
 
+  // Componente do gráfico baseado no tipo selecionado
+  const renderChart = () => {
+    switch (chartType) {
+      case 'line':
+        return <Line data={data} options={options} />;
+      case 'bar':
+        return <Bar data={data} options={options} />;
+      default:
+        return <Line data={data} options={options} />;
+    }
+  };
+
   return (
     <View style={styles.container}>
-      <Text>Gráfico de Dados dos Sensores</Text>
-      <Line data={data} options={options} />
+      <Text style={styles.title}>Gráfico de Dados dos Sensores</Text>
+      <Picker
+        selectedValue={chartType}
+        style={styles.picker}
+        onValueChange={(itemValue) => setChartType(itemValue)}
+        itemStyle={styles.pickerItem}
+      >
+        <Picker.Item label="Linha" value="line" />
+        <Picker.Item label="Barra" value="bar" />
+      </Picker>
+      {renderChart()}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  container: { flex: 1, justifyContent: 'flex-start', alignItems: 'flex-end', padding: 20 },
+  title: { fontSize: 18, marginBottom: 10 },
+  picker: { height: 40, width: 150, marginBottom: 20, borderColor: '#ccc', borderWidth: 1, borderRadius: 5 },
+  pickerItem: { height: 40 },
 });
