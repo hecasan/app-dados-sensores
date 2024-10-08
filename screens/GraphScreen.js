@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Picker, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Picker, ScrollView, Button } from 'react-native';
 import { Line, Bar } from 'react-chartjs-2';
 import 'chart.js/auto';
 import io from 'socket.io-client';
@@ -8,6 +8,7 @@ export default function GraphScreen({ route }) {
   const [sensorData, setSensorData] = useState([]);
   const [chartType, setChartType] = useState('line');
   const [timeRange, setTimeRange] = useState('lastHour');
+  const [selectedEnvironment, setSelectedEnvironment] = useState('1'); // Estado para ambiente selecionado
   const { token } = route.params;
 
   // Mapeamento dos sensor_id para os nomes dos ambientes
@@ -18,25 +19,25 @@ export default function GraphScreen({ route }) {
     4: 'Escritório',
   };
 
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
-        const response = await fetch('http://localhost:3000/dados-sensores', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-        if (!response.ok) {
-          throw new Error('Falha ao buscar dados do servidor');
-        }
-        const data = await response.json();
-        setSensorData(data);
-      } catch (error) {
-        console.error('Erro ao buscar dados iniciais:', error);
+  const fetchData = async () => {
+    try {
+      const response = await fetch('http://localhost:3000/dados-sensores', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Falha ao buscar dados do servidor');
       }
-    };
+      const data = await response.json();
+      setSensorData(data);
+    } catch (error) {
+      console.error('Erro ao buscar dados iniciais:', error);
+    }
+  };
 
-    fetchInitialData();
+  useEffect(() => {
+    fetchData(); // Chama fetchData ao montar o componente
 
     const socket = io('http://localhost:3000', {
       auth: {
@@ -49,15 +50,23 @@ export default function GraphScreen({ route }) {
     });
 
     socket.on('sensorDataUpdate', (newData) => {
-      console.log('Dados de sensor recebidos:', newData);
-      // Adiciona o novo dado ao estado
-      setSensorData(prevData => [...prevData, newData]);
+      console.log('Dados de sensor recebidos:', { sensorData });
+      setSensorData(prevData => {
+        if (!prevData.find(item => item.timestamp === newData.timestamp)) {
+          return [...prevData, newData];
+        }
+        return prevData;
+      });
     });
 
     return () => {
       socket.disconnect();
     };
   }, [token]);
+
+  const refreshData = () => {
+    fetchData(); // Chama fetchData novamente ao clicar no botão
+  };
 
   const getFilteredData = () => {
     const now = new Date();
@@ -97,14 +106,22 @@ export default function GraphScreen({ route }) {
 
   const groupedData = getGroupedData();
 
+  // Filtra os dados agrupados com base no ambiente selecionado
+  const filteredGroupedData = Object.keys(groupedData)
+    .filter(sensorId => sensorId === selectedEnvironment)
+    .reduce((obj, key) => {
+      obj[key] = groupedData[key];
+      return obj;
+    }, {});
+
   const renderCharts = () => {
-    return Object.keys(groupedData).map(sensorId => {
+    return Object.keys(filteredGroupedData).map(sensorId => {
       const data = {
-        labels: groupedData[sensorId].map(item => new Date(item.timestamp).toLocaleTimeString()),
+        labels: filteredGroupedData[sensorId].map(item => new Date(item.timestamp).toLocaleTimeString()),
         datasets: [
           {
-            label: `Temperatura (${sensorNames[sensorId]})`, // Usando o mapeamento para o nome do sensor
-            data: groupedData[sensorId].map(item => item.temperatura),
+            label: `Temperatura (${sensorNames[sensorId]})`,
+            data: filteredGroupedData[sensorId].map(item => item.temperatura),
             borderColor: 'rgb(205, 1, 1)',
             backgroundColor: 'rgb(221, 15, 15)',
             fill: false,
@@ -134,7 +151,7 @@ export default function GraphScreen({ route }) {
 
       return (
         <View key={sensorId} style={styles.chartContainer}>
-          <Text style={styles.sensorTitle}>Gráfico do Sensor {sensorNames[sensorId]}</Text> {/* Usando o mapeamento para o título do gráfico */}
+          <Text style={styles.sensorTitle}>Gráfico do Sensor {sensorNames[sensorId]}</Text>
           {chartType === 'line' ? <Line data={data} options={options} /> : <Bar data={data} options={options} />}
         </View>
       );
@@ -144,6 +161,17 @@ export default function GraphScreen({ route }) {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Gráfico de Dados dos Sensores</Text>
+
+      <Picker
+        selectedValue={selectedEnvironment}
+        style={styles.picker}
+        onValueChange={(itemValue) => setSelectedEnvironment(itemValue)}
+        itemStyle={styles.pickerItem}
+      >
+        {Object.keys(sensorNames).map(sensorId => (
+          <Picker.Item key={sensorId} label={sensorNames[sensorId]} value={sensorId} />
+        ))}
+      </Picker>
 
       <Picker
         selectedValue={timeRange}
@@ -168,7 +196,8 @@ export default function GraphScreen({ route }) {
         <Picker.Item label="Barra" value="bar" />
       </Picker>
 
-      {/* Adicionando o ScrollView aqui */}
+      <Button title="Atualizar Dados" onPress={refreshData} />
+
       <ScrollView style={styles.scrollView}>
         {renderCharts()}
       </ScrollView>
@@ -183,5 +212,5 @@ const styles = StyleSheet.create({
   pickerItem: { height: 40 },
   chartContainer: { marginBottom: 20, width: '100%' },
   sensorTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 5 },
-  scrollView: { width: '100%' }, // Define a largura do ScrollView
+  scrollView: { width: '100%' },
 });
